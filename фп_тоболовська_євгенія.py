@@ -170,6 +170,7 @@ for i in range(len(distances)):
 
 """Завдання 4. Візуалізація піраміди"""
 
+import heapq
 import uuid
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -182,93 +183,75 @@ class Node:
         self.color = color
         self.id = str(uuid.uuid4())
 
-def add_edges(graph, node, pos, x=0, y=0, layer=1):
-    if node is not None:
-        graph.add_node(node.id, color=node.color, label=node.val)
-        if node.left:
-            graph.add_edge(node.id, node.left.id)
-            l = x - 1 / 2 ** layer
-            pos[node.left.id] = (l, y - 1)
-            add_edges(graph, node.left, pos, x=l, y=y - 1, layer=layer + 1)
-        if node.right:
-            graph.add_edge(node.id, node.right.id)
-            r = x + 1 / 2 ** layer
-            pos[node.right.id] = (r, y - 1)
-            add_edges(graph, node.right, pos, x=r, y=y - 1, layer=layer + 1)
-    return graph
+def build_heap_tree(heap_array):
+    node_list = [Node(val) for val in heap_array]
+
+    for i in range(len(node_list)):
+        left_index = 2 * i + 1
+        right_index = 2 * i + 2
+        if left_index < len(node_list):
+            node_list[i].left = node_list[left_index]
+        if right_index < len(node_list):
+            node_list[i].right = node_list[right_index]
+
+    return node_list[0] if node_list else None
 
 def draw_heap(tree_root):
     tree = nx.DiGraph()
-    pos = {tree_root.id: (0, 0)}
+    pos = {}
     tree = add_edges(tree, tree_root, pos)
-
     colors = [node[1]['color'] for node in tree.nodes(data=True)]
     labels = {node[0]: node[1]['label'] for node in tree.nodes(data=True)}
-
     plt.figure(figsize=(8, 5))
     nx.draw(tree, pos=pos, labels=labels, arrows=False, node_size=2500, node_color=colors, with_labels=True, font_weight='bold')
     plt.show()
 
-# Приклад використання для створення та візуалізації бінарної купи
-root = Node(10)
-root.left = Node(8)
-root.right = Node(9)
-root.left.left = Node(7)
-root.left.right = Node(6)
-root.right.left = Node(4)
+def add_edges(graph, node, pos, x=0, y=0, layer=1):
+    if node is not None:
+        graph.add_node(node.id, color=node.color, label=node.val)
+        pos[node.id] = (x, y)
+        if node.left:
+            graph.add_edge(node.id, node.left.id)
+            add_edges(graph, node.left, pos, x=x - 1 / 2 ** layer, y=y - 1, layer=layer + 1)
+        if node.right:
+            graph.add_edge(node.id, node.right.id)
+            add_edges(graph, node.right, pos, x=x + 1 / 2 ** layer, y=y - 1, layer=layer + 1)
+    return graph
 
-draw_heap(root)
+# Приклад використання
+heap_array = [1, 3, 5, 7, 9, 2, 4, 34, 2, 1, 2]
+heapq.heapify(heap_array)
+heap_tree_root = build_heap_tree(heap_array)
+draw_heap(heap_tree_root)
 
 """Завдання 5. Візуалізація обходу бінарного дерева"""
 
-import matplotlib.pyplot as plt
-import networkx as nx
-import uuid
+def generate_color(order, total_visits):
+    """Генерує колір RGB від темного до світлого залежно від порядку відвідування."""
+    ratio = order / total_visits
+    # Генеруємо відтінки синього для прикладу
+    r = g = 0
+    b = 255 - int(ratio * 255)
+    return f"#{r:02X}{g:02X}{b:02X}"
 
-class Node:
-    def __init__(self, value):
-        self.id = str(uuid.uuid4())
-        self.value = value
-        self.left = None
-        self.right = None
-        self.color = "#FFFFFF"  # Білий колір за замовчуванням
+current_visit_order = 0  # Лічильник порядку відвідування
 
-def add_edges(graph, node, pos, x=0, y=0, layer=1):
-    if node is not None:
-        graph.add_node(node.id, color=node.color, label=node.value)
-        if node.left:
-            graph.add_edge(node.id, node.left.id)
-            l = x - 1 / 2 ** layer
-            pos[node.left.id] = (l, y - 1)
-            add_edges(graph, node.left, pos, x=l, y=y - 1, layer=layer + 1)
-        if node.right:
-            graph.add_edge(node.id, node.right.id)
-            r = x + 1 / 2 ** layer
-            pos[node.right.id] = (r, y - 1)
-            add_edges(graph, node.right, pos, x=r, y=y - 1, layer=layer + 1)
-    return graph
+def dfs_coloring(node, depth=0, total_visits=1):
+    global current_visit_order
+    if node:
+        node.color = generate_color(current_visit_order, total_visits)
+        current_visit_order += 1
+        dfs_coloring(node.left, depth + 1, total_visits)
+        dfs_coloring(node.right, depth + 1, total_visits)
 
-def draw_graph_with_colored_nodes(graph, pos):
-    colors = [node[1]['color'] for node in graph.nodes(data=True)]
-    labels = {node[0]: node[1]['label'] for node in graph.nodes(data=True)}
-    nx.draw(graph, pos, labels=labels, with_labels=True, node_color=colors, node_size=2000)
-
-def generate_color(depth, max_depth):
-    intensity = 255 - int((depth / max_depth) * 255)
-    return f"#{intensity:02X}{intensity:02X}FF"
-
-def dfs_coloring(graph, node, depth=0, max_depth=0):
-    if node is not None:
-        node.color = generate_color(depth, max_depth)
-        dfs_coloring(graph, node.left, depth + 1, max_depth)
-        dfs_coloring(graph, node.right, depth + 1, max_depth)
-
-def bfs_coloring(graph, root, max_depth):
+def bfs_coloring(root, total_visits):
+    global current_visit_order
     queue = [(root, 0)]
     while queue:
         node, depth = queue.pop(0)
-        if node is not None:
-            node.color = generate_color(depth, max_depth)
+        if node:
+            node.color = generate_color(current_visit_order, total_visits)
+            current_visit_order += 1
             queue.append((node.left, depth + 1))
             queue.append((node.right, depth + 1))
 
@@ -307,28 +290,42 @@ print(greedy_algorithm(items, 100))
 """Алгоритм динамічного програмування"""
 
 def dynamic_programming(items, budget):
-    # Створюємо масив для зберігання максимальної калорійності для кожного бюджету
-    dp = [0] * (budget + 1)
+    # Кількість страв
+    n = len(items)
 
-    for i in range(1, budget + 1):
-        for item in items.values():
-            if item["cost"] <= i:
-                dp[i] = max(dp[i], dp[i - item["cost"]] + item["calories"])
+    # Створюємо таблицю для збереження максимальної калорійності для кожної вартості до budget
+    dp = [[0 for x in range(budget + 1)] for x in range(n + 1)]
 
-    # Визначаємо які страви були обрані
-    selected_items = []
-    remaining_budget = budget
-    for i in range(budget, 0, -1):
-        if dp[i] != dp[i-1]:
-            for name, item in items.items():
-                if item["cost"] <= remaining_budget and dp[remaining_budget] - dp[remaining_budget - item["cost"]] == item["calories"]:
-                    selected_items.append(name)
-                    remaining_budget -= item["cost"]
-                    break
+    # Побудова таблиці dp в напрямку знизу вгору
+    for i in range(1, n + 1):
+        for w in range(1, budget + 1):
+            # Вартість і калорійність поточної страви
+            cost = items[i-1]['cost']
+            calories = items[i-1]['calories']
 
-    return selected_items, dp[budget]
+            if cost <= w:
+                # Вибираємо максимум між не включенням цієї страви та включенням її з урахуванням калорійності
+                dp[i][w] = max(dp[i-1][w], dp[i-1][w-cost] + calories)
+            else:
+                # Якщо страву не можна включити, то калорійність не змінюється
+                dp[i][w] = dp[i-1][w]
 
-print(dynamic_programming(items, 100))
+    # Результат знаходиться в dp[n][budget]
+    return dp[n][budget]
+
+# Приклад використання
+items = [
+    {"cost": 50, "calories": 300},
+    {"cost": 40, "calories": 250},
+    {"cost": 30, "calories": 200},
+    {"cost": 10, "calories": 100},
+    {"cost": 15, "calories": 220},
+    {"cost": 25, "calories": 350}
+]
+budget = 100  # Максимальна сума грошей, яку можна витратити
+
+max_calories = dynamic_programming(items, budget)
+print(f"Максимальна калорійність, яку можна отримати з бюджетом {budget}: {max_calories}")
 
 """Завдання 7: Використання методу Монте-Карло"""
 
